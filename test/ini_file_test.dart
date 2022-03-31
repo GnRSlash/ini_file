@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 
 void main() async {
   IniFile ini = IniFile();
+  ini.trimResults = true;
   await ini.readFile('./example/YSA.ini');
 
   group('IniFile tests...', () {

@@ -7,6 +7,9 @@ class IniFile {
   Encoding _encoding = utf8;
   List<String> _lines = [];
 
+  /// if you want spaces to be removed from the results, set this to true
+  bool trimResults = true;
+
   /// keep tracking of sections to improve search
   final List<String> _sections = [];
   final RegExp _sectionPattern = RegExp(r'^[^#;\s]+[\[\]]', multiLine: true);
@@ -47,6 +50,7 @@ class IniFile {
   }
 
   /// get section items and convert to json format
+  /// section is case insensitive
   Map<String, Map<String, String>> getJsonItems(String section) {
     Map<String, Map<String, String>> ret = {section: {}};
     List<List<String>> items = getItems(section);
@@ -57,70 +61,66 @@ class IniFile {
   }
 
   /// get section items and returns in list of list items
+  /// section is case insensitive
   List<List<String>> getItems(String section) {
-    List<List<String>> ret = [];
-    bool inSection = false;
-    section = section.toLowerCase();
-    for (String item in _lines) {
-      if (_sectionPattern.hasMatch(item)) {
-        if (inSection) {
-          break;
-        }
-        inSection = _sectionPattern.stringMatch(item)?.toLowerCase() == '[$section]';
-      }
-      if (inSection && _entryPattern.hasMatch(item)) {
-        List<String> items = item.split('=');
-        ret.add([items[0].trim(), items[1].trim()]);
-      }
-    }
-    return ret;
+    return _getKeysOrKey(section);
   }
 
   /// get just one key from section
+  /// section and key are case insensitive
+  /// returns null if item was not found
   String? getItem(String section, String key) {
-    List<List<String>> items = getItems(section);
-    for (List<String> item in items) {
-      if (item[0].toLowerCase() == key) {
-        return item[1];
-      }
-    }
-    return null;
+    List<List<String>> items = _getKeysOrKey(section, key);
+
+    return items.isEmpty ? null : items[0][1];
   }
 
   /// change existing key in section or create new key and new section if they don't exist
-  /// throws exceptions
+  /// section and key are case insensitive
+  /// this function can throws exceptions
   void setItem(String section, String key, String value) {
     if (key.contains(' ') || section.contains(' ')) {
       throw ('Sections and Keys must not contain spaces!');
     }
+    setItems(section, [
+      [key, value]
+    ]);
+  }
+
+  /// write to an existing section item (create the item if it not exists)
+  void setItems(String section, List<List<String>> values) {
+    if (section.contains(' ')) {
+      throw ('Sections and Keys must not contain spaces!');
+    }
     int firstSectionLine = _getOrCreateSection(section);
     int line = firstSectionLine;
+    Map<String, String> items = _listToMap(values);
+
     while (line < _lines.length) {
       if (_entryPattern.hasMatch(_lines[line])) {
-        List<String> items = _lines[line].split('=');
-        if (items[0].trim().toLowerCase() == key.toLowerCase()) {
-          // key found, change it
-          _lines[line] = '$key = $value';
-          return;
+        List<String> splits = _lines[line].split('=');
+        if (items.containsKey(splits[0].trim().toLowerCase())) {
+          _lines[line] = '${splits[0].trim()}=${items[splits[0].trim().toLowerCase()]}';
+          items.remove(splits[0].trim().toLowerCase());
         }
       }
-      if (_sectionPattern.hasMatch(_lines[line])) {
+      if (_sectionPattern.hasMatch(_lines[line]) || items.isEmpty) {
         // section does not contains this key
         break;
       }
       line++;
     }
-    // key not found, create it at the begining of the section
-    _lines.insert(firstSectionLine, '$key = $value');
-  }
 
-  void setItems(String section, List<List<String>> values) {
-    for (List<String> element in values) {
-      setItem(section, element[0], element[1]);
-    }
+    // insert new keys if they were not changed
+    line = firstSectionLine;
+    items.forEach((key, value) {
+      _lines[line] = '$key=$value';
+      line++;
+    });
   }
 
   /// delete entire section if it exists
+  /// section is case insensitive
   void removeSection(String section) {
     int start = 0;
     int end = 0;
@@ -166,6 +166,16 @@ class IniFile {
     return _lines.join('\r\n');
   }
 
+  /// convert List<List<String>> into Map<String, String>
+  /// all keys will be converted to lowerCase
+  Map<String, String> _listToMap(List<List<String>> items) {
+    Map<String, String> ret = {};
+    for (List<String> item in items) {
+      ret[item[0].trim().toLowerCase()] = _trimItem(item[1]);
+    }
+    return ret;
+  }
+
   /// put all existing sections inside a control variable
   /// to make checks faster
   void _readSections(String contents) {
@@ -191,6 +201,7 @@ class IniFile {
   }
 
   /// return next line number of the section
+  /// throws exception
   int _getSection(String section) {
     section = section.toLowerCase();
     for (int i = 0; i < _lines.length; i++) {
@@ -200,4 +211,32 @@ class IniFile {
     }
     throw Exception("can't create section, internal error!");
   }
+
+  /// get all section items, or just one item if specified by key
+  List<List<String>> _getKeysOrKey(String section, [String key = '']) {
+    List<List<String>> ret = [];
+    bool inSection = false;
+    section = section.toLowerCase();
+    for (String item in _lines) {
+      if (_sectionPattern.hasMatch(item)) {
+        if (inSection) {
+          break;
+        }
+        inSection = _sectionPattern.stringMatch(item)?.toLowerCase() == '[$section]';
+      }
+      if (inSection && _entryPattern.hasMatch(item)) {
+        List<String> items = item.split('=');
+        if (items[0].trim().toLowerCase() == key.toLowerCase()) {
+          return [
+            [items[0].trim(), _trimItem(items[1])]
+          ];
+        }
+        ret.add([items[0].trim(), _trimItem(items[1])]);
+      }
+    }
+
+    return ret;
+  }
+
+  String _trimItem(String item) => trimResults ? item.trim() : item;
 }
