@@ -1,3 +1,8 @@
+## 1.0.0
+- fixed IniFile.empty() -> now it is working
+- Create getAllSections() to get all sections
+- Create toMap() to get all contents in Map format
+
 ## 0.0.2-beta
 - improved some functions to run faster
 - getItem not working (fixed)

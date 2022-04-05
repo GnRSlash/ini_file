@@ -58,5 +58,11 @@ void main() async {
       expect(() => ini.writeFile('./example/removed.ini'), returnsNormally);
       expect(await file.exists(), true);
     });
+
+    test('create new file', () {
+      IniFile ini1 = IniFile.emptyFile('./example/new.ini');
+      ini1.setItem('NEW_SECTION', 'NEW_KEY', 'New Value');
+      expect(ini1.getItem('NEW_SECTION', 'NEW_KEY'), 'New Value');
+    });
   });
 }

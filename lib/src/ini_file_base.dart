@@ -8,21 +8,30 @@ class IniFile {
   List<String> _lines = [];
 
   /// if you want spaces to be removed from the results, set this to true
-  bool trimResults = true;
+  bool trimResults;
 
   /// keep tracking of sections to improve search
   final List<String> _sections = [];
   final RegExp _sectionPattern = RegExp(r'^[^#;\s]+[\[\]]', multiLine: true);
   final RegExp _entryPattern = RegExp(r'^([^#;\s]+)([\s]*)=(.*?)$', multiLine: true);
 
-  IniFile();
+  IniFile({this.trimResults = true});
 
-  factory IniFile.emptyFile(String filePath) {
-    IniFile newini = IniFile();
-    newini._file = File(filePath);
-    if (!newini._file.existsSync()) {
-      newini._file.create();
+  /// create a new empty file
+  /// throws exceptions
+  factory IniFile.emptyFile(String filePath, {bool trimResults = true, bool overrideFile = false}) {
+    File file = File(filePath);
+    if (file.existsSync()) {
+      if (overrideFile) {
+        file.delete();
+      } else {
+        throw Exception('File already exists!');
+      }
     }
+    file.writeAsStringSync('# Created by ini_file dart package!');
+
+    IniFile newini = IniFile(trimResults: trimResults);
+    newini._file = File(filePath);
     return newini;
   }
 
@@ -49,7 +58,7 @@ class IniFile {
     await file.writeAsString(toString(), mode: FileMode.writeOnly, encoding: _encoding);
   }
 
-  /// get section items and convert to json format
+  /// get section items and convert to Map format (use json.decode(json.encode(this)) to get json format)
   /// section is case insensitive
   Map<String, Map<String, String>> getJsonItems(String section) {
     Map<String, Map<String, String>> ret = {section: {}};
@@ -114,7 +123,7 @@ class IniFile {
     // insert new keys if they were not changed
     line = firstSectionLine;
     items.forEach((key, value) {
-      _lines[line] = '$key=$value';
+      _lines.insert(line, '$key=$value');
       line++;
     });
   }
@@ -161,7 +170,26 @@ class IniFile {
     }
   }
 
+  /// returns a list of all sections found in this file
+  List<String> getAllSections() {
+    return _sections;
+  }
+
+  /// get all contents (except comments and blank lines) as Map format
+  /// (use json.decode(json.encode(this)) to get as json format)
+  Map<String, dynamic> toMap() {
+    Map<String, dynamic> ret = {};
+
+    for (String section in _sections) {
+      ret[section] = getJsonItems(section);
+    }
+
+    return ret;
+  }
+
   @override
+
+  /// returns all the file contents
   String toString() {
     return _lines.join('\r\n');
   }
@@ -191,7 +219,7 @@ class IniFile {
   int _getOrCreateSection(String section) {
     if (!_sections.contains(section.toLowerCase())) {
       _sections.add(section.toLowerCase());
-      if (_lines[_lines.length - 1].trim().isNotEmpty) {
+      if (!_lines.isEmpty && _lines[_lines.length - 1].trim().isNotEmpty) {
         _lines.add('');
       }
       _lines.add('[$section]');
