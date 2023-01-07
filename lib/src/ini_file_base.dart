@@ -259,7 +259,7 @@ class IniFile {
             [items[0].trim(), _trimItem(items[1])]
           ];
         }
-        ret.add([items[0].trim(), _trimItem(items[1])]);
+        if(key=='')ret.add([items[0].trim(), _trimItem(items[1])]);
       }
     }
 
